@@ -1,5 +1,6 @@
-namespace AgentForge.Evals;
+// Assembly-level attributes do módulo AgentForge.Evals.
+// (Renomeie para AssemblyInfo.cs quando conveniente.)
 
-// Módulo AgentForge.Evals — LLM-as-judge + testes determinísticos executáveis via xUnit.
-// Ver docs/architecture.md e a Issue #1 Design v0 para escopo do v0.1.
-internal static class Placeholder;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("AgentForge.Evals.Tests")]
