@@ -1,5 +1,7 @@
-namespace AgentForge.Providers;
+// Assembly-level attributes do módulo AgentForge.Providers.
+// (Renomeie este arquivo para AssemblyInfo.cs quando conveniente —
+//  o nome atual persiste porque o Cowork não deleta arquivos.)
 
-// Módulo AgentForge.Providers — adapters uniformes para Anthropic, OpenAI e AWS Bedrock.
-// Ver docs/architecture.md e a Issue #1 Design v0 para escopo do v0.1.
-internal static class Placeholder;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("AgentForge.Providers.Tests")]
