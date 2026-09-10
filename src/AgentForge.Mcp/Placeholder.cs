@@ -1,5 +1,6 @@
-namespace AgentForge.Mcp;
+// Assembly-level attributes do módulo AgentForge.Mcp.
+// (Renomeie este arquivo para AssemblyInfo.cs quando conveniente.)
 
-// Módulo AgentForge.Mcp — cliente MCP (wrapper sobre ModelContextProtocol) com transports stdio e HTTP.
-// Ver docs/architecture.md e a Issue #1 Design v0 para escopo do v0.1.
-internal static class Placeholder;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("AgentForge.Mcp.Tests")]
