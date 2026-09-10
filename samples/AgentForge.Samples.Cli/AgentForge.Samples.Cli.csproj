@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AgentForge.Samples.Cli</RootNamespace>
+    <AssemblyName>agent-forge</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AgentForge.Core\AgentForge.Core.csproj" />
+    <ProjectReference Include="..\..\src\AgentForge.Providers\AgentForge.Providers.csproj" />
+    <ProjectReference Include="..\..\src\AgentForge.Guardrails\AgentForge.Guardrails.csproj" />
+  </ItemGroup>
+</Project>

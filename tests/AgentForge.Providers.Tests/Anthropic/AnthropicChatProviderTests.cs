@@ -33,6 +33,39 @@ public class AnthropicChatProviderTests
         var req = handler.Calls[0].Request;
         Assert.Equal("sk-fake-key", req.Headers.GetValues("x-api-key").Single());
         Assert.Equal("2023-06-01", req.Headers.GetValues("anthropic-version").Single());
+        Assert.False(req.Headers.Contains("anthropic-workspace-id"));
+    }
+
+    [Fact]
+    public async Task Sends_WorkspaceId_Header_When_Provided()
+    {
+        var handler = new RecordingHandler(HttpStatusCode.OK, OkResponse);
+        using var http = new HttpClient(handler);
+        using var provider = new AnthropicChatProvider(
+            "sk-fake-key", http, workspaceId: "wrkspc_01ABC");
+
+        _ = await provider.CompleteAsync(new ChatRequest(
+            [ChatMessage.User("oi")],
+            Model: "claude-3-5-sonnet-latest"));
+
+        var req = handler.Calls[0].Request;
+        Assert.Equal("wrkspc_01ABC", req.Headers.GetValues("anthropic-workspace-id").Single());
+    }
+
+    [Fact]
+    public async Task Empty_WorkspaceId_Is_Treated_As_Not_Provided()
+    {
+        var handler = new RecordingHandler(HttpStatusCode.OK, OkResponse);
+        using var http = new HttpClient(handler);
+        using var provider = new AnthropicChatProvider(
+            "sk-fake-key", http, workspaceId: "   ");
+
+        _ = await provider.CompleteAsync(new ChatRequest(
+            [ChatMessage.User("oi")],
+            Model: "claude-3-5-sonnet-latest"));
+
+        var req = handler.Calls[0].Request;
+        Assert.False(req.Headers.Contains("anthropic-workspace-id"));
     }
 
     [Fact]
