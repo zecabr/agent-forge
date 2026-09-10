@@ -1,0 +1,24 @@
+# Build results
+bin/
+obj/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet
+*.nupkg
+*.snupkg
+
+# Test results
+TestResults/
+[Cc]overage*/
+*.trx
+
+# Logs
+*.log
