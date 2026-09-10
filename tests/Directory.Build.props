@@ -1,0 +1,16 @@
+<Project>
+  <!-- Herda tudo do root, mas relaxa alguns analisadores que só
+       fazem sentido em código de produção. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      CA1002 List<T> em API pública        — comum em fakes/spies
+      CA1024 use properties over methods    — testes têm mais liberdade
+      CA1707 identifiers with underscores   — Method_Names_Read_Better_This_Way
+      CA2007 ConfigureAwait                 — desnecessário em teste xUnit
+      CA2227 collection properties readonly — fakes precisam expor mutáveis
+    -->
+    <NoWarn>$(NoWarn);CA1002;CA1024;CA1707;CA2007;CA2227</NoWarn>
+  </PropertyGroup>
+</Project>
