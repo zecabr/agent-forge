@@ -1,5 +1,6 @@
-namespace AgentForge.Guardrails;
+// Assembly-level attributes do módulo AgentForge.Guardrails.
+// (Renomeie para AssemblyInfo.cs quando conveniente.)
 
-// Módulo AgentForge.Guardrails — prompt-injection filter, PII scrub, cost cap por sessão.
-// Ver docs/architecture.md e a Issue #1 Design v0 para escopo do v0.1.
-internal static class Placeholder;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("AgentForge.Guardrails.Tests")]
