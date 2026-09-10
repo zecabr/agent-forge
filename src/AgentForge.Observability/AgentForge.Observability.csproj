@@ -1,2 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\AgentForge.Core\AgentForge.Core.csproj" />
+  </ItemGroup>
 </Project>

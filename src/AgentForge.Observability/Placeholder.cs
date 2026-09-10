@@ -1,5 +1,6 @@
-namespace AgentForge.Observability;
+// Assembly-level attributes do módulo AgentForge.Observability.
+// (Renomeie para AssemblyInfo.cs quando conveniente.)
 
-// Módulo AgentForge.Observability — instrumentação OpenTelemetry + exporter SQLite local + OTLP opcional.
-// Ver docs/architecture.md e a Issue #1 Design v0 para escopo do v0.1.
-internal static class Placeholder;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("AgentForge.Observability.Tests")]
