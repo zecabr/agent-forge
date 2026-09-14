@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AgentForge.Capabilities.FileTools</RootNamespace>
+    <AssemblyName>agent-forge-file-tools</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AgentForge.Mcp.Server\AgentForge.Mcp.Server.csproj" />
+  </ItemGroup>
+</Project>
