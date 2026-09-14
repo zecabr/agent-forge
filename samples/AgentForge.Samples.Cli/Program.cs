@@ -4,6 +4,9 @@ using AgentForge.Core.Abstractions;
 using AgentForge.Guardrails;
 using AgentForge.Providers.Anthropic;
 using AgentForge.Providers.Gemini;
+using AgentForge.Providers.Resilience;
+
+using var httpClient = new HttpClient(new RetryingHttpHandler(new HttpClientHandler()));
 
 var providerName = (Environment.GetEnvironmentVariable("AGENT_FORGE_PROVIDER") ?? "anthropic")
     .Trim().ToLowerInvariant();
@@ -25,7 +28,7 @@ switch (providerName)
             return 1;
         }
 
-        var gemini = new GeminiChatProvider(geminiKey);
+        var gemini = new GeminiChatProvider(geminiKey, httpClient);
         provider = gemini;
         providerDisposable = gemini;
         defaultModel = "gemini-flash-lite-latest";
@@ -42,7 +45,7 @@ switch (providerName)
         }
 
         var workspaceId = Environment.GetEnvironmentVariable("ANTHROPIC_WORKSPACE_ID");
-        var anthropic = new AnthropicChatProvider(anthKey, workspaceId: workspaceId);
+        var anthropic = new AnthropicChatProvider(anthKey, httpClient, workspaceId: workspaceId);
         provider = anthropic;
         providerDisposable = anthropic;
         defaultModel = "claude-3-5-sonnet-latest";
