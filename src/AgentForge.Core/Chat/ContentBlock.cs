@@ -13,7 +13,11 @@ public sealed record TextBlock(string Text) : ContentBlock;
 /// Assistente pediu para invocar uma tool. <paramref name="Id"/> é o handle
 /// que o próximo <see cref="ToolResultBlock"/> deve referenciar.
 /// </summary>
-public sealed record ToolUseBlock(string Id, string Name, string InputJson) : ContentBlock;
+public sealed record ToolUseBlock(
+    string Id,
+    string Name,
+    string InputJson,
+    IReadOnlyDictionary<string, string>? ProviderMetadata = null) : ContentBlock;
 
 /// <summary>
 /// Resultado de uma tool anterior. <paramref name="IsError"/> sinaliza falha

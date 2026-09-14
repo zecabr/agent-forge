@@ -140,14 +140,7 @@ internal static class GeminiMapper
         {
             TextBlock t => new JsonObject { ["text"] = t.Text },
 
-            ToolUseBlock tu => new JsonObject
-            {
-                ["functionCall"] = new JsonObject
-                {
-                    ["name"] = tu.Name,
-                    ["args"] = JsonNode.Parse(tu.InputJson),
-                },
-            },
+            ToolUseBlock tu => BuildFunctionCallPart(tu),
 
             ToolResultBlock tr => new JsonObject
             {
@@ -160,6 +153,29 @@ internal static class GeminiMapper
 
             _ => throw new InvalidOperationException($"Unknown content block: {block.GetType()}"),
         };
+    }
+
+    private static JsonObject BuildFunctionCallPart(ToolUseBlock tu)
+    {
+        var functionCall = new JsonObject
+        {
+            ["name"] = tu.Name,
+            ["args"] = JsonNode.Parse(tu.InputJson),
+        };
+
+        var part = new JsonObject { ["functionCall"] = functionCall };
+
+        // Gemini exige echo de thoughtSignature em modelos com thinking (2.5 Pro / 3.x).
+        // Sem echo, a request devolve 400 INVALID_ARGUMENT no turno seguinte a um tool call.
+        // Ver ADR-005.
+        if (tu.ProviderMetadata is { } meta
+            && meta.TryGetValue("gemini.thoughtSignature", out var sig)
+            && !string.IsNullOrEmpty(sig))
+        {
+            part["thoughtSignature"] = sig;
+        }
+
+        return part;
     }
 
     private static JsonObject WrapToolResponse(string resultJson, bool isError)
@@ -211,10 +227,24 @@ internal static class GeminiMapper
                 else if (partNode["functionCall"] is JsonNode fc)
                 {
                     hasFunctionCall = true;
+
+                    // Captura thoughtSignature quando presente — precisa ser ecoada
+                    // na próxima request (ver ADR-005 e BuildFunctionCallPart).
+                    IReadOnlyDictionary<string, string>? meta = null;
+                    if (partNode["thoughtSignature"]?.GetValue<string>() is string sig
+                        && !string.IsNullOrEmpty(sig))
+                    {
+                        meta = new Dictionary<string, string>(StringComparer.Ordinal)
+                        {
+                            ["gemini.thoughtSignature"] = sig,
+                        };
+                    }
+
                     content.Add(new ToolUseBlock(
                         Id: fc["name"]?.GetValue<string>() ?? "unknown",  // Gemini não devolve id — usa name como proxy
                         Name: fc["name"]?.GetValue<string>() ?? "unknown",
-                        InputJson: fc["args"]?.ToJsonString() ?? "{}"));
+                        InputJson: fc["args"]?.ToJsonString() ?? "{}",
+                        ProviderMetadata: meta));
                 }
             }
         }
