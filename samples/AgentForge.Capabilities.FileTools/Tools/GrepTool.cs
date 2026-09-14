@@ -22,6 +22,7 @@ internal sealed class GrepTool : McpTool
     public override string Description =>
         "Searches for a term across all text files under the root. Case-insensitive substring match. "
         + "Optional 'pattern' filters which files are searched (default '*' = everything). "
+        + "Skips common build/VCS directories: .git, .hg, .svn, bin, obj, node_modules, .vs, .vscode, .idea. "
         + "Returns up to 50 matches, each with file path, line number, and one line of context "
         + "above and below. Binary files are skipped. Files > 200 KB are skipped.";
 

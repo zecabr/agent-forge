@@ -101,4 +101,44 @@ public class FilesRootTests : IDisposable
         Assert.False(FilesRoot.LooksBinary(Array.Empty<byte>()));
         Assert.False(FilesRoot.LooksBinary(new byte[] { 0x41 }));
     }
+
+    [Fact]
+    public void EnumerateFiles_Skips_Ignored_Directories()
+    {
+        // adiciona subdiretórios que deveriam ser ignorados
+        Directory.CreateDirectory(Path.Combine(_tempDir, ".git", "objects"));
+        Directory.CreateDirectory(Path.Combine(_tempDir, "bin", "Debug", "net9.0"));
+        Directory.CreateDirectory(Path.Combine(_tempDir, "obj"));
+        Directory.CreateDirectory(Path.Combine(_tempDir, "node_modules", "foo"));
+        File.WriteAllText(Path.Combine(_tempDir, ".git", "HEAD"), "ref: main");
+        File.WriteAllText(Path.Combine(_tempDir, ".git", "objects", "abc.pack"), "pack");
+        File.WriteAllText(Path.Combine(_tempDir, "bin", "Debug", "net9.0", "app.dll"), "binary");
+        File.WriteAllText(Path.Combine(_tempDir, "obj", "cache.txt"), "cache");
+        File.WriteAllText(Path.Combine(_tempDir, "node_modules", "foo", "package.json"), "{}");
+
+        var root = new FilesRoot(_tempDir);
+        var files = root.EnumerateFiles().ToList();
+
+        Assert.DoesNotContain(files, f => f.StartsWith(".git/", StringComparison.Ordinal));
+        Assert.DoesNotContain(files, f => f.StartsWith("bin/", StringComparison.Ordinal));
+        Assert.DoesNotContain(files, f => f.StartsWith("obj/", StringComparison.Ordinal));
+        Assert.DoesNotContain(files, f => f.StartsWith("node_modules/", StringComparison.Ordinal));
+
+        // arquivos normais fora dessas pastas continuam listados
+        Assert.Contains("README.md", files);
+        Assert.Contains("src/foo.cs", files);
+    }
+
+    [Fact]
+    public void EnumerateFiles_Ignored_Match_Is_Case_Insensitive()
+    {
+        // Windows: pastas .Git / BIN existem em algum canto — precisa pegar mesmo assim
+        Directory.CreateDirectory(Path.Combine(_tempDir, "BIN"));
+        File.WriteAllText(Path.Combine(_tempDir, "BIN", "release.dll"), "binary");
+
+        var root = new FilesRoot(_tempDir);
+        var files = root.EnumerateFiles().ToList();
+
+        Assert.DoesNotContain(files, f => f.StartsWith("BIN/", StringComparison.OrdinalIgnoreCase));
+    }
 }

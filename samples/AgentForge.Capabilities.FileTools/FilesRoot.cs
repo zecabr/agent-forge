@@ -47,14 +47,49 @@ internal sealed class FilesRoot
         return candidate;
     }
 
-    /// <summary>Enumera todos os arquivos sob o root, paths relativos com <c>/</c>.</summary>
+    /// <summary>
+    /// Diretórios ignorados por padrão em <see cref="EnumerateFiles"/> — mesmo espírito
+    /// do <c>rg</c>/<c>fd</c>: filesystem tem dezenas de milhares de arquivos de build,
+    /// controle de versão e IDE que poluem qualquer listagem útil pro agente.
+    /// </summary>
+    public static readonly IReadOnlySet<string> IgnoredDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ".git", ".hg", ".svn",
+        "bin", "obj",
+        "node_modules",
+        ".vs", ".vscode", ".idea",
+    };
+
+    /// <summary>Enumera arquivos sob o root, paths relativos com <c>/</c>, pulando diretórios ignorados.</summary>
     public IEnumerable<string> EnumerateFiles(string? searchPattern = null)
     {
         var pattern = string.IsNullOrWhiteSpace(searchPattern) ? "*" : searchPattern;
         foreach (var abs in Directory.EnumerateFiles(CanonicalPath, pattern, SearchOption.AllDirectories))
         {
-            yield return ToRelative(abs);
+            var relative = ToRelative(abs);
+            if (IsInIgnoredDirectory(relative))
+            {
+                continue;
+            }
+
+            yield return relative;
         }
+    }
+
+    private static bool IsInIgnoredDirectory(string relativePath)
+    {
+        // relativePath usa '/' como separador (ver ToRelative)
+        var segments = relativePath.Split('/');
+        // Arquivos na raiz têm apenas 1 segmento — não podem estar em subdiretório ignorado
+        for (var i = 0; i < segments.Length - 1; i++)
+        {
+            if (IgnoredDirectories.Contains(segments[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Converte absolute path (dentro do root) pra relativo com <c>/</c>.</summary>

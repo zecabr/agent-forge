@@ -21,6 +21,7 @@ internal sealed class ListFilesTool : McpTool
         "Lists files under the root directory, recursively. Returns one relative path per line. "
         + "Optional 'pattern' is a filesystem glob (default '*' = everything), e.g. '*.cs' or '*.md'. "
         + "Optional 'prefix' filters to paths starting with that string. "
+        + "Skips common build/VCS directories: .git, .hg, .svn, bin, obj, node_modules, .vs, .vscode, .idea. "
         + "Capped at 500 paths — use pattern/prefix to narrow when the tree is large.";
 
     public override JsonObject InputSchema => new()
