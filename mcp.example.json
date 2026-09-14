@@ -7,6 +7,23 @@
         "--root",
         "."
       ]
+    },
+    "file-tools": {
+      "command": "dotnet",
+      "args": [
+        "samples/AgentForge.Capabilities.FileTools/bin/Debug/net9.0/agent-forge-file-tools.dll",
+        "--root",
+        "."
+      ]
+    },
+    "sql-reader": {
+      "command": "dotnet",
+      "args": [
+        "samples/AgentForge.Capabilities.SqlReader/bin/Debug/net9.0/agent-forge-sql-reader.dll",
+        "--db",
+        "./data/app.db"
+      ],
+      "_comment": "Descomente ou remova este server se não tiver um SQLite em ./data/app.db. Ver samples/AgentForge.Capabilities.SqlReader/README.md pra criar um pequeno pra teste."
     }
   }
 }

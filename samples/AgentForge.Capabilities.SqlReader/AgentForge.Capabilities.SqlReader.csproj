@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AgentForge.Capabilities.SqlReader</RootNamespace>
+    <AssemblyName>agent-forge-sql-reader</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AgentForge.Mcp.Server\AgentForge.Mcp.Server.csproj" />
+  </ItemGroup>
+</Project>
