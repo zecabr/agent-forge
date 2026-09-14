@@ -211,4 +211,163 @@ public class McpHostTests
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
+
+    [Fact]
+    public async Task Init_LogsAndContinues_When_Server_Fails_On_StartAsync()
+    {
+        var failingTransport = new FailingTransport("bad", FailingTransport.FailMode.OnStart);
+        var okTransport = new FakeMcpTransport("ok");
+        okTransport.ResponseByMethod["initialize"] = new JsonObject();
+        okTransport.ResponseByMethod["tools/list"] = new JsonObject
+        {
+            ["tools"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["name"] = "ok_tool",
+                    ["description"] = "still there",
+                    ["inputSchema"] = new JsonObject(),
+                },
+            },
+        };
+
+        var factories = new Dictionary<string, IMcpTransport>
+        {
+            ["bad"] = failingTransport,
+            ["ok"] = okTransport,
+        };
+        var logs = new List<string>();
+
+        await using var host = new McpHost(
+            servers: [Config("bad"), Config("ok")],
+            transportFactory: cfg => factories[cfg.Name],
+            diagnosticLog: logs.Add);
+
+        var tools = await host.DiscoverToolsAsync();
+
+        // ok server subiu apesar do bad ter falhado
+        Assert.Single(tools);
+        Assert.Equal("ok_tool", tools[0].Name);
+        Assert.True(okTransport.Started);
+        // log emitido pro bad
+        Assert.Contains(logs, l => l.Contains("[mcp-host]") && l.Contains("'bad'") && l.Contains("failed to start"));
+        Assert.True(failingTransport.DisposeCalled, "transport falho deveria ser disposed");
+    }
+
+    [Fact]
+    public async Task Init_LogsAndContinues_When_Server_Fails_On_Initialize()
+    {
+        var failingTransport = new FailingTransport("bad", FailingTransport.FailMode.OnInitialize);
+        var okTransport = new FakeMcpTransport("ok");
+        okTransport.ResponseByMethod["initialize"] = new JsonObject();
+        okTransport.ResponseByMethod["tools/list"] = new JsonObject { ["tools"] = new JsonArray() };
+
+        var factories = new Dictionary<string, IMcpTransport>
+        {
+            ["bad"] = failingTransport,
+            ["ok"] = okTransport,
+        };
+        var logs = new List<string>();
+
+        await using var host = new McpHost(
+            servers: [Config("bad"), Config("ok")],
+            transportFactory: cfg => factories[cfg.Name],
+            diagnosticLog: logs.Add);
+
+        _ = await host.DiscoverToolsAsync();
+
+        Assert.True(okTransport.Started, "ok server deveria ter iniciado apesar do bad ter falhado no initialize");
+        Assert.Contains(logs, l => l.Contains("[mcp-host]") && l.Contains("'bad'") && l.Contains("failed to start"));
+        Assert.Contains(logs, l => l.Contains("McpProtocolException"));
+        Assert.True(failingTransport.DisposeCalled);
+    }
+
+    [Fact]
+    public async Task Init_Propagates_OperationCanceledException_When_Token_Cancelled()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var transport = new CancellingTransport("c");
+        var logs = new List<string>();
+        await using var host = new McpHost(
+            servers: [Config("c")],
+            transportFactory: _ => transport,
+            diagnosticLog: logs.Add);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => host.DiscoverToolsAsync(cts.Token));
+
+        // cancelamento cooperativo não deve ser confundido com "failed to start"
+        Assert.DoesNotContain(logs, l => l.Contains("failed to start"));
+    }
+
+    /// <summary>Transport que falha ou no StartAsync ou no SendRequestAsync("initialize").</summary>
+    private sealed class FailingTransport : IMcpTransport
+    {
+        public enum FailMode { OnStart, OnInitialize }
+
+        private readonly FailMode _mode;
+
+        public FailingTransport(string name, FailMode failOn)
+        {
+            Name = name;
+            _mode = failOn;
+        }
+
+        public string Name { get; }
+
+        public bool DisposeCalled { get; private set; }
+
+        public Task StartAsync(CancellationToken ct = default)
+        {
+            if (_mode == FailMode.OnStart)
+            {
+                throw new InvalidOperationException("simulated spawn error");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task<JsonNode?> SendRequestAsync(string method, JsonNode? @params, CancellationToken ct = default)
+        {
+            if (_mode == FailMode.OnInitialize && method == "initialize")
+            {
+                throw new McpProtocolException("simulated initialize failure", code: -32000);
+            }
+
+            return Task.FromResult<JsonNode?>(new JsonObject());
+        }
+
+        public Task SendNotificationAsync(string method, JsonNode? @params, CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeCalled = true;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    /// <summary>Transport que respeita o CancellationToken no StartAsync.</summary>
+    private sealed class CancellingTransport : IMcpTransport
+    {
+        public CancellingTransport(string name) => Name = name;
+
+        public string Name { get; }
+
+        public Task StartAsync(CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<JsonNode?> SendRequestAsync(string method, JsonNode? @params, CancellationToken ct = default) =>
+            Task.FromResult<JsonNode?>(new JsonObject());
+
+        public Task SendNotificationAsync(string method, JsonNode? @params, CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
 }

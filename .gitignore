@@ -22,3 +22,7 @@ TestResults/
 
 # Logs
 *.log
+
+# Local dev data (banco de exemplo do sql-reader) e config real com paths absolutos/keys
+data/
+mcp.json

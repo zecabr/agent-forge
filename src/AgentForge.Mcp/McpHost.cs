@@ -12,12 +12,19 @@ namespace AgentForge.Mcp;
 /// vários servidores aparecem como um único catálogo de tools.
 /// Lazy: só inicia processos e chama initialize na primeira <see cref="DiscoverToolsAsync"/> ou <see cref="InvokeAsync"/>.
 /// </summary>
+/// <remarks>
+/// Robustez: se um server declarado no config falhar ao subir (StartAsync throw, initialize throw),
+/// o McpHost <b>loga o erro no diagnosticLog e segue com os demais servers</b>. Um server quebrado
+/// não derruba o host inteiro — a lista final de tools reflete o que efetivamente subiu.
+/// O default do diagnosticLog é <see cref="Console.Error"/>; injete um logger custom nos testes.
+/// </remarks>
 public sealed class McpHost : IMcpClient, IAsyncDisposable
 {
     private const string ProtocolVersion = "2024-11-05";
 
     private readonly IReadOnlyList<McpServerConfig> _configs;
     private readonly Func<McpServerConfig, IMcpTransport> _transportFactory;
+    private readonly Action<string> _diagnosticLog;
     private readonly List<IMcpTransport> _transports = [];
     private readonly Dictionary<string, IMcpTransport> _toolToTransport = [];
     private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -26,11 +33,13 @@ public sealed class McpHost : IMcpClient, IAsyncDisposable
 
     public McpHost(
         IEnumerable<McpServerConfig> servers,
-        Func<McpServerConfig, IMcpTransport>? transportFactory = null)
+        Func<McpServerConfig, IMcpTransport>? transportFactory = null,
+        Action<string>? diagnosticLog = null)
     {
         ArgumentNullException.ThrowIfNull(servers);
         _configs = [.. servers];
         _transportFactory = transportFactory ?? (cfg => new StdioTransport(cfg));
+        _diagnosticLog = diagnosticLog ?? (msg => Console.Error.WriteLine(msg));
     }
 
     public async Task<IReadOnlyList<ToolDefinition>> DiscoverToolsAsync(CancellationToken ct = default)
@@ -158,24 +167,41 @@ public sealed class McpHost : IMcpClient, IAsyncDisposable
 
             foreach (var config in _configs)
             {
-                var transport = _transportFactory(config);
-                await transport.StartAsync(ct).ConfigureAwait(false);
-
-                var initParams = new JsonObject
+                IMcpTransport? transport = null;
+                try
                 {
-                    ["protocolVersion"] = ProtocolVersion,
-                    ["capabilities"] = new JsonObject(),
-                    ["clientInfo"] = new JsonObject
+                    transport = _transportFactory(config);
+                    await transport.StartAsync(ct).ConfigureAwait(false);
+
+                    var initParams = new JsonObject
                     {
-                        ["name"] = "agent-forge",
-                        ["version"] = "0.1.0",
-                    },
-                };
+                        ["protocolVersion"] = ProtocolVersion,
+                        ["capabilities"] = new JsonObject(),
+                        ["clientInfo"] = new JsonObject
+                        {
+                            ["name"] = "agent-forge",
+                            ["version"] = "0.1.0",
+                        },
+                    };
 
-                _ = await transport.SendRequestAsync("initialize", initParams, ct).ConfigureAwait(false);
-                await transport.SendNotificationAsync("notifications/initialized", @params: null, ct).ConfigureAwait(false);
+                    _ = await transport.SendRequestAsync("initialize", initParams, ct).ConfigureAwait(false);
+                    await transport.SendNotificationAsync("notifications/initialized", @params: null, ct).ConfigureAwait(false);
 
-                _transports.Add(transport);
+                    _transports.Add(transport);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    // cancelamento cooperativo: dispose do transport parcial e propaga
+                    await SafeDisposeAsync(transport).ConfigureAwait(false);
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // um server que não subiu não derruba os demais — loga e segue
+                    _diagnosticLog(
+                        $"[mcp-host] server '{config.Name}' failed to start ({ex.GetType().Name}): {ex.Message}");
+                    await SafeDisposeAsync(transport).ConfigureAwait(false);
+                }
             }
 
             _initialized = true;
@@ -183,6 +209,23 @@ public sealed class McpHost : IMcpClient, IAsyncDisposable
         finally
         {
             _initLock.Release();
+        }
+    }
+
+    private static async Task SafeDisposeAsync(IMcpTransport? transport)
+    {
+        if (transport is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await transport.DisposeAsync().ConfigureAwait(false);
+        }
+        catch
+        {
+            // best-effort — nada útil a fazer se o dispose de um transport quebrado falhar
         }
     }
 

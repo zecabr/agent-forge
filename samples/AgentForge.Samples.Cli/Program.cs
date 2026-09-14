@@ -123,7 +123,17 @@ try
         };
 
         var options = new AgentOptions(model, MaxTokens: 2048, MaxSteps: maxSteps);
-        var agent = new Agent(provider, mcp: mcpHost, guardrails: guardrails, options: options);
+
+        // AGENT_FORGE_VERBOSE=1 embrulha o McpHost pra logar cada tool call no stderr.
+        // Diagnostica loops, payloads gigantes, tools erradas.
+        IMcpClient? agentMcp = mcpHost;
+        var verbose = Environment.GetEnvironmentVariable("AGENT_FORGE_VERBOSE") == "1";
+        if (verbose && mcpHost is not null)
+        {
+            agentMcp = new VerboseMcpClient(mcpHost);
+        }
+
+        var agent = new Agent(provider, mcp: agentMcp, guardrails: guardrails, options: options);
         var session = new AgentSession(costCapUsd: costCap);
 
         Banner(providerName, model, costCap, maxSteps, extraLine, mcpSummary, mcpTools);

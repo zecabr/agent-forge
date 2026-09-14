@@ -23,7 +23,7 @@
         "--db",
         "./data/app.db"
       ],
-      "_comment": "Descomente ou remova este server se não tiver um SQLite em ./data/app.db. Ver samples/AgentForge.Capabilities.SqlReader/README.md pra criar um pequeno pra teste."
+      "_comment": "Este server precisa de um SQLite em ./data/app.db. Para criar um pequeno pra teste, rode:  dotnet run --project tools/CreateSampleDb -- --db data/app.db  (5 clientes, 6 pedidos). Se preferir apontar pra outro banco, ajuste o path acima. Se nao quiser rodar este server, remova este bloco."
     }
   }
 }
