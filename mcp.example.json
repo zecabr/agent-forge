@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "docs-reader": {
+      "command": "dotnet",
+      "args": [
+        "samples/AgentForge.Capabilities.DocsReader/bin/Debug/net9.0/agent-forge-docs-reader.dll",
+        "--root",
+        "."
+      ]
+    }
+  }
+}

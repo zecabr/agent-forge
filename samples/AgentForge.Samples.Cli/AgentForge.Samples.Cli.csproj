@@ -9,5 +9,6 @@
     <ProjectReference Include="..\..\src\AgentForge.Core\AgentForge.Core.csproj" />
     <ProjectReference Include="..\..\src\AgentForge.Providers\AgentForge.Providers.csproj" />
     <ProjectReference Include="..\..\src\AgentForge.Guardrails\AgentForge.Guardrails.csproj" />
+    <ProjectReference Include="..\..\src\AgentForge.Mcp\AgentForge.Mcp.csproj" />
   </ItemGroup>
 </Project>

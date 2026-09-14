@@ -1,10 +1,13 @@
 using System.Globalization;
 using AgentForge.Core;
 using AgentForge.Core.Abstractions;
+using AgentForge.Core.Tools;
 using AgentForge.Guardrails;
+using AgentForge.Mcp;
 using AgentForge.Providers.Anthropic;
 using AgentForge.Providers.Gemini;
 using AgentForge.Providers.Resilience;
+using AgentForge.Samples.Cli;
 
 using var httpClient = new HttpClient(new RetryingHttpHandler(new HttpClientHandler()));
 
@@ -72,70 +75,117 @@ Console.CancelKeyPress += (_, e) =>
     cts.Cancel();
 };
 
-using (providerDisposable)
+// MCP: carrega config (--mcp <path>, env AGENT_FORGE_MCP_CONFIG ou ./mcp.json)
+// e spawna os servidores declarados. Sem config = sem MCP (backward compat).
+McpHost? mcpHost = null;
+IReadOnlyList<ToolDefinition> mcpTools = Array.Empty<ToolDefinition>();
+string? mcpSummary = null;
+
+var mcpConfigPath = McpConfigLoader.ResolveConfigPath(args);
+if (mcpConfigPath is not null)
 {
-    var guardrails = new IGuardrail[]
+    IReadOnlyList<McpServerConfig> mcpConfigs;
+    try
     {
-        new PromptInjectionGuardrail(),
-        new CostCapGuardrail(thresholdUsd: costCap * 0.9m),
-    };
-
-    var options = new AgentOptions(model, MaxTokens: 2048, MaxSteps: maxSteps);
-    var agent = new Agent(provider, guardrails: guardrails, options: options);
-    var session = new AgentSession(costCapUsd: costCap);
-
-    Banner(providerName, model, costCap, maxSteps, extraLine);
-
-    while (!cts.IsCancellationRequested)
+        mcpConfigs = McpConfigLoader.Load(mcpConfigPath);
+    }
+    catch (Exception ex)
     {
-        Console.Write("você > ");
-        string? input;
+        Console.Error.WriteLine($"[erro] falha ao carregar MCP config '{mcpConfigPath}': {ex.Message}");
+        return 1;
+    }
+
+    if (mcpConfigs.Count > 0)
+    {
+        mcpHost = new McpHost(mcpConfigs);
         try
         {
-            input = Console.ReadLine();
-        }
-        catch (OperationCanceledException)
-        {
-            break;
-        }
-
-        if (input is null || input.Trim().Equals("exit", StringComparison.OrdinalIgnoreCase))
-        {
-            break;
-        }
-
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            continue;
-        }
-
-        Console.WriteLine();
-
-        try
-        {
-            var result = await agent.RunAsync(session, input, cts.Token);
-            PrintResult(result, providerName);
-        }
-        catch (OperationCanceledException)
-        {
-            Console.WriteLine("[cancelado]");
+            mcpTools = await mcpHost.DiscoverToolsAsync(cts.Token);
+            mcpSummary = $"{mcpConfigs.Count} server(s), {mcpTools.Count} tool(s) · {Path.GetFileName(mcpConfigPath)}";
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[falha] {ex.GetType().Name}: {ex.Message}");
+            Console.Error.WriteLine($"[erro] falha ao inicializar MCP servers: {ex.Message}");
+            await mcpHost.DisposeAsync();
+            return 1;
+        }
+    }
+}
+
+try
+{
+    using (providerDisposable)
+    {
+        var guardrails = new IGuardrail[]
+        {
+            new PromptInjectionGuardrail(),
+            new CostCapGuardrail(thresholdUsd: costCap * 0.9m),
+        };
+
+        var options = new AgentOptions(model, MaxTokens: 2048, MaxSteps: maxSteps);
+        var agent = new Agent(provider, mcp: mcpHost, guardrails: guardrails, options: options);
+        var session = new AgentSession(costCapUsd: costCap);
+
+        Banner(providerName, model, costCap, maxSteps, extraLine, mcpSummary, mcpTools);
+
+        while (!cts.IsCancellationRequested)
+        {
+            Console.Write("você > ");
+            string? input;
+            try
+            {
+                input = Console.ReadLine();
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+
+            if (input is null || input.Trim().Equals("exit", StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                continue;
+            }
+
+            Console.WriteLine();
+
+            try
+            {
+                var result = await agent.RunAsync(session, input, cts.Token);
+                PrintResult(result, providerName);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("[cancelado]");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[falha] {ex.GetType().Name}: {ex.Message}");
+            }
+
+            PrintSessionFooter(session);
+            Console.WriteLine();
         }
 
-        PrintSessionFooter(session);
         Console.WriteLine();
+        Console.WriteLine($"encerrando · sessão custou {FormatUsd(session.CumulativeUsage.CostUsd)} · {session.CumulativeUsage.InputTokens}in / {session.CumulativeUsage.OutputTokens}out");
     }
-
-    Console.WriteLine();
-    Console.WriteLine($"encerrando · sessão custou {FormatUsd(session.CumulativeUsage.CostUsd)} · {session.CumulativeUsage.InputTokens}in / {session.CumulativeUsage.OutputTokens}out");
+}
+finally
+{
+    if (mcpHost is not null)
+    {
+        await mcpHost.DisposeAsync();
+    }
 }
 
 return 0;
 
-static void Banner(string providerName, string model, decimal costCap, int maxSteps, string? extra)
+static void Banner(string providerName, string model, decimal costCap, int maxSteps, string? extra, string? mcpSummary, IReadOnlyList<ToolDefinition> mcpTools)
 {
     Console.WriteLine("agent-forge · sample CLI (v0.1)");
     Console.WriteLine($"  provider:   {providerName}");
@@ -145,6 +195,19 @@ static void Banner(string providerName, string model, decimal costCap, int maxSt
     if (extra is not null)
     {
         Console.WriteLine($"  {extra}");
+    }
+
+    if (mcpSummary is not null)
+    {
+        Console.WriteLine($"  mcp:        {mcpSummary}");
+        foreach (var tool in mcpTools)
+        {
+            Console.WriteLine($"                · {tool.Name}");
+        }
+    }
+    else
+    {
+        Console.WriteLine("  mcp:        (nenhum servidor configurado — use --mcp <path> ou mcp.json no cwd)");
     }
 
     Console.WriteLine();
