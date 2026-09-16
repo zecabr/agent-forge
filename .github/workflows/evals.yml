@@ -1,0 +1,71 @@
+name: Evals
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'samples/**'
+      - 'tests/AgentForge.Evals.Suite/**'
+      - 'tools/CreateSampleDb/**'
+      - '.github/workflows/evals.yml'
+      - 'Directory.Packages.props'
+      - 'global.json'
+  schedule:
+    # Segunda 08:00 UTC (05:00 BRT) — semanal
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  eval-suite:
+    name: Eval Suite · Gemini agent + Claude judge
+    runs-on: ubuntu-latest
+    # Sem os secrets, este job seria só skips vazios — melhor não gastar minuto.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || vars.EVALS_ENABLED == 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run eval suite
+        env:
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          dotnet test tests/AgentForge.Evals.Suite/AgentForge.Evals.Suite.csproj \
+            --configuration Release --no-build \
+            --logger "trx;LogFileName=evals.trx" \
+            --logger "console;verbosity=detailed" \
+            --results-directory ./eval-results
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: ./eval-results
+          retention-days: 30
